@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>万能视频下载器-国内版</title>
+    <style>
+        /* 极简风格设计 */
+        body { max-width: 600px; margin: 20px auto; padding: 20px }
+        #result { margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px }
+        .video-box { position: relative; margin: 10px 0 }
+    </style>
+</head>
+<body>
+    <input type="url" id="inputUrl" placeholder="粘贴视频链接" style="width:70%">
+    <button onclick="startParse()">解析</button>
+    <div id="result"></div>
+
+<script>
+// 平台识别规则库
+const PLATFORMS = {
+    'douyin.com': {
+        type: 'inject',
+        script: `(() => {
+            const video = document.querySelector('video');
+            return video ? video.src : null;
+        })()`
+    },
+    'bilibili.com': {
+        type: 'hack',
+        process: async (url) => {
+            const iframe = document.createElement('iframe');
+            iframe.sandbox = 'allow-scripts allow-same-origin';
+            iframe.style.display = 'none';
+            iframe.src = url;
+            document.body.appendChild(iframe);
+            
+            return new Promise(resolve => {
+                iframe.onload = () => {
+                    const video = iframe.contentDocument.querySelector('video');
+                    resolve(video?.src);
+                };
+            });
+        }
+    }
+}
+
+async function startParse() {
+    const url = document.getElementById('inputUrl').value;
+    const platform = Object.keys(PLATFORMS).find(p => url.includes(p));
+    
+    if (!platform) return alert('暂不支持该平台');
+    
+    try {
+        const videoUrl = await parseVideo(url, PLATFORMS[platform]);
+        showResult(videoUrl);
+    } catch(e) {
+        alert('解析失败：' + e.message);
+    }
+}
+
+async function parseVideo(url, rule) {
+    // 跨域解决方案
+    const proxyUrl = `https://cors-anywhere.herokuapp.com/${url}`;
+    
+    switch(rule.type) {
+        case 'inject':
+            return await executeInSandbox(proxyUrl, rule.script);
+        case 'hack':
+            return await rule.process(proxyUrl);
+    }
+}
+
+function executeInSandbox(url, script) {
+    return new Promise((resolve) => {
+        const iframe = document.createElement('iframe');
+        iframe.sandbox = 'allow-scripts allow-same-origin';
+        iframe.style.display = 'none';
+        iframe.srcdoc = `
+            <script src="${url}"><\/script>
+            <script>
+                try {
+                    const result = ${script};
+                    window.parent.postMessage(result, '*');
+                } catch(e) {}
+            <\/script>
+        `;
+        
+        window.addEventListener('message', e => {
+            resolve(e.data);
+            iframe.remove();
+        });
+        
+        document.body.appendChild(iframe);
+    });
+}
+
+function showResult(url) {
+    const resultDiv = document.getElementById('result');
+    resultDiv.innerHTML = `
+        <div class="video-box">
+            <video controls src="${url}" style="width:100%"></video>
+            <button onclick="download('${url}')">下载视频</button>
+        </div>
+    `;
+}
+
+function download(url) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'video_' + Date.now() + '.mp4';
+    a.click();
+}
+</script>
+</body>
+</html>
