@@ -1,114 +1,185 @@
-<!DOCTYPE html>
-<html>
+:<!DOCTYPE html>
+<html lang="zh-CN">
 <head>
-    <title>万能视频下载器-国内版 文天玩WenTianPlay</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文天传统助手</title>
     <style>
-        /* 极简风格设计 */
-        body { max-width: 600px; margin: 20px auto; padding: 20px }
-        #result { margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px }
-        .video-box { position: relative; margin: 10px 0 }
+        :root {
+            --primary-color: #8B4513;
+            --secondary-color: #F4A460;
+        }
+        body {
+            font-family: '微软雅黑', sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #FFF8DC;
+        }
+        .section {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 5px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        input, button {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid var(--primary-color);
+            border-radius: 4px;
+        }
+        button {
+            background: var(--secondary-color);
+            cursor: pointer;
+        }
+        #bagua-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+        .gua-card {
+            padding: 10px;
+            background: #FAF0E6;
+            border-radius: 5px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
-    <input type="url" id="inputUrl" placeholder="粘贴视频链接" style="width:70%">
-    <button onclick="startParse()">解析</button>
-    <div id="result"></div>
+    <div class="section">
+        <h2>吉时查询</h2>
+        <input type="date" id="dateInput" value="">
+        <button onclick="calculateLuckyHours()">查询吉时</button>
+        <div id="luckyHours"></div>
+    </div>
 
-<script>
-// 平台识别规则库
-const PLATFORMS = {
-    'douyin.com': {
-        type: 'inject',
-        script: `(() => {
-            const video = document.querySelector('video');
-            return video ? video.src : null;
-        })()`
-    },
-    'bilibili.com': {
-        type: 'hack',
-        process: async (url) => {
-            const iframe = document.createElement('iframe');
-            iframe.sandbox = 'allow-scripts allow-same-origin';
-            iframe.style.display = 'none';
-            iframe.src = url;
-            document.body.appendChild(iframe);
-            
-            return new Promise(resolve => {
-                iframe.onload = () => {
-                    const video = iframe.contentDocument.querySelector('video');
-                    resolve(video?.src);
-                };
-            });
-        }
-    }
-}
+    <div class="section">
+        <h2>历史上的今天</h2>
+        <div id="historyToday"></div>
+    </div>
 
-async function startParse() {
-    const url = document.getElementById('inputUrl').value;
-    const platform = Object.keys(PLATFORMS).find(p => url.includes(p));
-    
-    if (!platform) return alert('暂不支持该平台');
-    
-    try {
-        const videoUrl = await parseVideo(url, PLATFORMS[platform]);
-        showResult(videoUrl);
-    } catch(e) {
-        alert('解析失败：' + e.message);
-    }
-}
-
-async function parseVideo(url, rule) {
-    // 跨域解决方案
-    const proxyUrl = `https://cors-anywhere.herokuapp.com/${url}`;
-    
-    switch(rule.type) {
-        case 'inject':
-            return await executeInSandbox(proxyUrl, rule.script);
-        case 'hack':
-            return await rule.process(proxyUrl);
-    }
-}
-
-function executeInSandbox(url, script) {
-    return new Promise((resolve) => {
-        const iframe = document.createElement('iframe');
-        iframe.sandbox = 'allow-scripts allow-same-origin';
-        iframe.style.display = 'none';
-        iframe.srcdoc = `
-            <script src="${url}"><\/script>
-            <script>
-                try {
-                    const result = ${script};
-                    window.parent.postMessage(result, '*');
-                } catch(e) {}
-            <\/script>
-        `;
-        
-        window.addEventListener('message', e => {
-            resolve(e.data);
-            iframe.remove();
-        });
-        
-        document.body.appendChild(iframe);
-    });
-}
-
-function showResult(url) {
-    const resultDiv = document.getElementById('result');
-    resultDiv.innerHTML = `
-        <div class="video-box">
-            <video controls src="${url}" style="width:100%"></video>
-            <button onclick="download('${url}')">下载视频</button>
+    <div class="section">
+        <h2>今日宜忌</h2>
+        <div class="grid">
+            <div>
+                <h3>宜</h3>
+                <ul id="appropriate"></ul>
+            </div>
+            <div>
+                <h3>忌</h3>
+                <ul id="inappropriate"></ul>
+            </div>
         </div>
-    `;
-}
+    </div>
 
-function download(url) {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'video_' + Date.now() + '.mp4';
-    a.click();
-}
-</script>
+    <div class="section">
+        <h2>生日倒计时</h2>
+        <input type="date" id="birthdayInput">
+        <button onclick="saveBirthday()">保存生日</button>
+        <div id="countdown"></div>
+    </div>
+
+    <div class="section">
+        <h2>八卦知识</h2>
+        <div id="bagua-container"></div>
+    </div>
+
+    <script>
+        // 初始化日期输入
+        document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
+
+        // 吉时计算
+        function calculateLuckyHours() {
+            const hours = Array.from({length: 6}, () => 
+                `${Math.floor(Math.random()*2 + 9)}:00-${Math.floor(Math.random()*2 + 11)}:00`
+            );
+            document.getElementById('luckyHours').innerHTML = `吉时：${hours.join('，')}`;
+        }
+
+        // 历史上的今天（使用公开API）
+        async function loadHistory() {
+            try {
+                const res = await fetch('https://api.juncikeji.xyz/api/lishi');
+                const data = await res.json();
+                document.getElementById('historyToday').innerHTML = 
+                    data.data.map(event => `<p>${event.year}年：${event.title}</p>`).join('');
+            } catch {
+                document.getElementById('historyToday').innerHTML = '暂时无法获取历史数据';
+            }
+        }
+
+        // 黄历宜忌数据
+        const calendarData = {
+            appropriate: ['搬家', '理发', '签约', '装修', '开业'],
+            inappropriate: ['结婚', '动土', '出行', '安葬', '针灸']
+        };
+
+        // 生日倒计时
+        function saveBirthday() {
+            const birthday = document.getElementById('birthdayInput').value;
+            localStorage.setItem('birthday', birthday);
+            calculateCountdown();
+        }
+
+        function calculateCountdown() {
+            const birthday = localStorage.getItem('birthday');
+            if (!birthday) return;
+            
+            const today = new Date();
+            const nextBirthday = new Date(birthday);
+            nextBirthday.setFullYear(today.getFullYear());
+            if (nextBirthday < today) nextBirthday.setFullYear(today.getFullYear() + 1);
+            
+            const diff = Math.ceil((nextBirthday - today) / (1000 * 3600 * 24));
+            document.getElementById('countdown').innerHTML = `距离下次生日还有：${diff}天`;
+        }
+
+        // 八卦数据
+        const bagua = [
+            {symbol: '☰', name: '乾', nature: '天'},
+            {symbol: '☷', name: '坤', nature: '地'},
+            {symbol: '☳', name: '震', nature: '雷'},
+            {symbol: '☵', name: '坎', nature: '水'},
+            {symbol: '☶', name: '艮', nature: '山'},
+            {symbol: '☴', name: '巽', nature: '风'},
+            {symbol: '☲', name: '离', nature: '火'},
+            {symbol: '☱', name: '兑', nature: '泽'}
+        ];
+
+        // 初始化
+        function init() {
+            // 填充宜忌列表
+            calendarData.appropriate.forEach(item => 
+                document.getElementById('appropriate').innerHTML += `<li>${item}</li>`);
+            calendarData.inappropriate.forEach(item => 
+                document.getElementById('inappropriate').innerHTML += `<li>${item}</li>`);
+
+            // 生成八卦卡片
+            bagua.forEach(gua => {
+                const card = document.createElement('div');
+                card.className = 'gua-card';
+                card.innerHTML = `<h3>${gua.symbol}</h3><p>${gua.name}（${gua.nature}）</p>`;
+                document.getElementById('bagua-container').appendChild(card);
+            });
+
+            loadHistory();
+            calculateCountdown();
+            setInterval(calculateCountdown, 86400000); // 每天更新
+        }
+
+        init();
+    </script>
 </body>
 </html>
